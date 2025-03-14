@@ -36,3 +36,9 @@ jobs:
 
       - name: build the thing
         run: ./gradlew build
+      - name: Archive APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk
+          path: app/build/outputs/apk/release/app-release-unsigned.apk
+          retention-days: 90

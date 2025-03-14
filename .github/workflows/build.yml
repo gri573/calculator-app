@@ -24,12 +24,15 @@ jobs:
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+
+	  - name: setup JVM
+        uses: actions/setup-java@v4
         with:
           java-version: 17
           distribution: temurin
-      - uses: android-actions/setup-actions@v3
 
-      # Runs a single command using the runners shell
+      - name: setup android SDK
+        uses: android-actions/setup-android@v3
+
       - name: build the thing
         run: ./gradlew build

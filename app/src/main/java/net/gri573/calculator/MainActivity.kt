@@ -67,7 +67,7 @@ class MainActivity : ComponentActivity() {
 
 data class MathFunction(
     val description : String,
-    val action : (List<Double>) -> Double,
+    val action : (List<List<Double?>>) -> List<Double?>,
 )
 
 fun performAssignment(userInput : String) : List<ExprToken>? {
@@ -84,11 +84,11 @@ fun performAssignment(userInput : String) : List<ExprToken>? {
     if (logResults) {
         if ('(' in userInput2[0]) {
             val inputNames = userInput2[0]
-                .replace(Regex(".*[(]"), "")
-                .replace(Regex("[)].*"), "").split(Regex(",[ \t]*"))
-            fun thisFunction(x : List<Double>) : Double {
+                .replace(Regex("^[^(]*[(]"), "")
+                .replace(Regex("[)][^)]*$"), "").split(Regex(",[ \t]*"))
+            fun thisFunction(x : List<List<Double?>>) : List<Double?> {
                 if (inputNames.size != x.size) throw NumberFormatException()
-                val inputVarMap : MutableMap<String, Double> = mutableMapOf()
+                val inputVarMap : MutableMap<String, List<Double?>> = mutableMapOf()
                 for (k in inputNames.indices) {
                     inputVarMap[inputNames[k]] = x[k]
                 }
@@ -103,28 +103,44 @@ fun performAssignment(userInput : String) : List<ExprToken>? {
     return expr
 }
 
+fun Double.sin() : Double { return sin(this) }
+fun Double.cos() : Double { return cos(this) }
+fun Double.tan() : Double { return tan(this) }
+fun Double.asin() : Double { return asin(this) }
+fun Double.acos() : Double { return acos(this) }
+fun Double.atan() : Double { return atan(this) }
+fun Double.sinh() : Double { return sinh(this) }
+fun Double.cosh() : Double { return cosh(this) }
+fun Double.tanh() : Double { return tanh(this) }
+fun Double.asinh() : Double { return asinh(this) }
+fun Double.acosh() : Double { return acosh(this) }
+fun Double.atanh() : Double { return atanh(this) }
+fun Double.exp() : Double { return exp(this) }
+fun Double.log(base : Double?) : Double? { return if (base != null) { log(this, base) } else {null}}
+fun Double.ln() : Double { return ln(this) }
+
 val functionMap : MutableMap<String, MathFunction> = mutableStateMapOf(
-    "sin"    to MathFunction("sin")    { x: List<Double> -> sin(x[0]) },
-    "cos"    to MathFunction("cos")    { x: List<Double> -> cos(x[0]) },
-    "tan"    to MathFunction("tan")    { x: List<Double> -> tan(x[0]) },
-    "arcsin" to MathFunction("arcsin") { x: List<Double> -> asin(x[0]) },
-    "arccos" to MathFunction("arccos") { x: List<Double> -> acos(x[0]) },
-    "arctan" to MathFunction("arctan") { x: List<Double> -> atan(x[0]) },
-    "sinh"   to MathFunction("sinh")   { x: List<Double> -> sinh(x[0]) },
-    "cosh"   to MathFunction("cosh")   { x: List<Double> -> cosh(x[0]) },
-    "tanh"   to MathFunction("tanh")   { x: List<Double> -> tanh(x[0]) },
-    "asinh"  to MathFunction("asinh")  { x: List<Double> -> asinh(x[0]) },
-    "acosh"  to MathFunction("acosh")  { x: List<Double> -> acosh(x[0]) },
-    "atanh"  to MathFunction("atanh")  { x: List<Double> -> atanh(x[0]) },
-    "exp"    to MathFunction("exp")    { x: List<Double> -> exp(x[0]) },
-    "log"    to MathFunction("log")    { x: List<Double> -> when(x.size) {
-        1 -> ln(x[0])
-        else -> log(x[0], x[1])
-    } }
+    "sin"    to MathFunction("sin")    { x: List<List<Double?>> -> List<Double?>(x[0].size) { x[0][it]?.sin() }},
+    "cos"    to MathFunction("cos")    { x: List<List<Double?>> -> List<Double?>(x[0].size) { x[0][it]?.cos() }},
+    "tan"    to MathFunction("tan")    { x: List<List<Double?>> -> List<Double?>(x[0].size) { x[0][it]?.tan() }},
+    "arcsin" to MathFunction("arcsin") { x: List<List<Double?>> -> List<Double?>(x[0].size) { x[0][it]?.asin() }},
+    "arccos" to MathFunction("arccos") { x: List<List<Double?>> -> List<Double?>(x[0].size) { x[0][it]?.acos() }},
+    "arctan" to MathFunction("arctan") { x: List<List<Double?>> -> List<Double?>(x[0].size) { x[0][it]?.atan() }},
+    "sinh"   to MathFunction("sinh")   { x: List<List<Double?>> -> List<Double?>(x[0].size) { x[0][it]?.sinh() }},
+    "cosh"   to MathFunction("cosh")   { x: List<List<Double?>> -> List<Double?>(x[0].size) { x[0][it]?.cosh() }},
+    "tanh"   to MathFunction("tanh")   { x: List<List<Double?>> -> List<Double?>(x[0].size) { x[0][it]?.tanh() }},
+    "asinh"  to MathFunction("asinh")  { x: List<List<Double?>> -> List<Double?>(x[0].size) { x[0][it]?.asinh() }},
+    "acosh"  to MathFunction("acosh")  { x: List<List<Double?>> -> List<Double?>(x[0].size) { x[0][it]?.acosh() }},
+    "atanh"  to MathFunction("atanh")  { x: List<List<Double?>> -> List<Double?>(x[0].size) { x[0][it]?.atanh() }},
+    "exp"    to MathFunction("exp")    { x: List<List<Double?>> -> List<Double?>(x[0].size) { x[0][it]?.exp() }},
+    "log"    to MathFunction("log")    { x: List<List<Double?>> -> when(x.size) {
+        1 -> List<Double?>(x[0].size) { x[0][it]?.ln() }
+        else -> List<Double?>(x[0].size) { x[0][it]?.log(x[1][it]) }
+    }}
 )
-val variableMap : MutableMap<String, Double> = mutableStateMapOf(
-    "pi" to Math.PI,
-    "e" to Math.E
+val variableMap : MutableMap<String, List<Double?>> = mutableStateMapOf(
+    "pi" to List<Double?>(1) {Math.PI},
+    "e" to List<Double?>(1) {Math.E}
 )
 
 
@@ -154,7 +170,11 @@ fun Body(modifier: Modifier = Modifier) {
         }
     }
     try {
-        result = evaluateExpression(expr).toString()
+        val exprResult = evaluateExpression(expr)
+        result = when(exprResult.size) {
+            1 -> exprResult[0]
+            else -> exprResult
+        }.toString()
         temporalResult = result
     } catch (e: NumberFormatException) {
         result = temporalResult

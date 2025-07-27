@@ -32,7 +32,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import kotlin.math.abs
 import kotlin.math.floor
 import kotlin.math.log10
 import kotlin.math.max
@@ -102,17 +101,24 @@ fun PlotFunction(modifier : Modifier = Modifier, func : MathFunction, showPlot :
                         var xTick = floor(plotBounds[0][0] / tickDist) * tickDist
                         var yTick = floor(plotBounds[1][1] / tickDist) * tickDist
 
-                        val xValues: MutableList<Float> = mutableListOf()
-                        val yValues: MutableList<Float?> = mutableListOf()
+                        val xValues: List<Float> = FloatArray(size.width.toInt() / 10 + 1) {
+                            val mixFactor = it * 10.0F / size.width
+                            mixFactor * (plotCenterX + 0.5F * mappedSizeX) +
+                            (1.0F - mixFactor) * (plotCenterX - 0.5F * mappedSizeX)
+                        }.toList()
+                        var yValues : List<Float?>
+                        try {
+                            val yValues0: List<Double?> =
+                                func.action(listOf(List<Double?>(xValues.size) { xValues[it].toDouble() }))
+                            yValues =
+                                List(xValues.size) { if(yValues0[it] != null && !(yValues0[it]!!.isNaN())) {yValues0[it]!!.toFloat()} else {null} }
+                        } catch (e : NumberFormatException) {
+                            yValues = List(xValues.size) {null}
+                        }
+                        /*val yValues: MutableList<Float?> = mutableListOf()
                         for (i in 0..size.width.toInt() / 10) {
-                            val mixFactor = i * 10.0F / size.width
-                            val thisX = (
-                                mixFactor * (plotCenterX + 0.5F * mappedSizeX) +
-                                (1.0F - mixFactor) * (plotCenterX - 0.5F * mappedSizeX)
-                            )
-                            xValues.add(thisX)
                             try {
-                                val thisY = func.action(listOf(thisX.toDouble())).toFloat()
+                                val thisY = func.action(listOf(DoubleArray(xValues[i].toDouble())).toFloat()
                                 if (thisY != thisY || abs(thisY - plotCenterY) > 1e5F * plotScale.floatValue) {
                                     throw NumberFormatException("Don't want any NaNs or infs here!")
                                 }
@@ -120,7 +126,7 @@ fun PlotFunction(modifier : Modifier = Modifier, func : MathFunction, showPlot :
                             } catch (e: Exception) {
                                 yValues.add(null)
                             }
-                        }
+                        }*/
 
                         while (xTick < plotBounds[0][1]) {
                             val tickPos = Offset(

@@ -1,13 +1,13 @@
 package net.gri573.calculator
 
 import kotlin.math.pow
-import kotlin.math.roundToInt
+import kotlin.math.sqrt
 
 enum class TokenType {
-    NUMBER, BRACKET, OPERATION, VARIABLE, FUNCTION, SEP
+    NUMBER, BRACKET, ARRAY, OPERATION, VARIABLE, FUNCTION, SEP
 }
 enum class OperationType {
-    ADD, SUB, MUL, DIV, POW, FACTORIAL
+    ADD, SUB, MUL, DIV, MOD, POW, FACTORIAL
 }
 
 data class ExprToken(val tokenType : TokenType, val value : Any?) {
@@ -32,26 +32,33 @@ fun tokenizeExpression(expr : String) : List<ExprToken> {
             in "0123456789." -> TokenType.NUMBER
             in " \t\n" -> null
             in "()" -> TokenType.BRACKET
+            in "[]" -> TokenType.ARRAY
             in "+-*/%^!" -> TokenType.OPERATION
             in ",;" -> TokenType.SEP
             else -> TokenType.VARIABLE
         }
-        if (newType == TokenType.OPERATION || newType == TokenType.BRACKET || currentTokenType != newType) {
+        if (newType == TokenType.OPERATION || newType == TokenType.BRACKET || newType == TokenType.ARRAY || currentTokenType != newType) {
             if (currentTokenType == TokenType.VARIABLE && expr2[k] == '(') {
                 currentTokenType = TokenType.FUNCTION
             }
             if (currentTokenType != null) {
                 tokens.add(ExprToken(currentTokenType, when(currentTokenType) {
-                    TokenType.NUMBER -> currentTokenString.toDouble()
+                    TokenType.NUMBER -> List<Double?>(1) { currentTokenString.toDouble() }
                     TokenType.BRACKET -> when(currentTokenString) {
                         "(" -> 1
                         ")" -> -1
+                        else -> null
+                    }
+                    TokenType.ARRAY -> when(currentTokenString) {
+                        "[" -> 1
+                        "]" -> -1
                         else -> null
                     }
                     TokenType.OPERATION -> when(currentTokenString) {
                         "+" -> OperationType.ADD
                         "-" -> OperationType.SUB
                         "*" -> OperationType.MUL
+                        "%" -> OperationType.MOD
                         "/" -> OperationType.DIV
                         "^" -> OperationType.POW
                         "!" -> OperationType.FACTORIAL
@@ -128,7 +135,7 @@ fun flattenBrackets(expr : List<ExprToken>) : List<ExprToken> {
     return expr3.toList()
 }
 
-fun insertVariableValues(expr: List<ExprToken>, variables: Map<String, Double> = variableMap.toMap()) : List<ExprToken> {
+fun insertVariableValues(expr: List<ExprToken>, variables: Map<String, List<Double?>> = variableMap.toMap()) : List<ExprToken> {
     val resultingExpr = expr.toMutableList()
     for (k in resultingExpr.indices) {
         if (resultingExpr[k].tokenType == TokenType.VARIABLE) {
@@ -151,7 +158,7 @@ fun applyFunctions(flatExpr: List<ExprToken>) : List<ExprToken> {
         if (
             flatExpr[k].tokenType == TokenType.FUNCTION
         ) {
-            val args : MutableList<Double> = mutableListOf()
+            val args : MutableList<List<Double?>> = mutableListOf()
             if (flatExpr[k+1] == ExprToken(TokenType.BRACKET, 1)) {
 
                 for (
@@ -159,7 +166,7 @@ fun applyFunctions(flatExpr: List<ExprToken>) : List<ExprToken> {
                 ) {
                     if (flatExpr[lastIndex].tokenType != TokenType.NUMBER) throw NumberFormatException()
                     try {
-                        args.add(flatExpr[lastIndex].value as Double)
+                        args.add(flatExpr[lastIndex].value as List<Double?>)
                     } catch (e : NullPointerException) {
                         throw NumberFormatException()
                     }
@@ -168,7 +175,7 @@ fun applyFunctions(flatExpr: List<ExprToken>) : List<ExprToken> {
                 }
             } else if (flatExpr[k+1].tokenType == TokenType.NUMBER) {
                 try {
-                    args.add(flatExpr[k + 1].value as Double)
+                    args.add(flatExpr[k + 1].value as List<Double?>)
                 } catch (e : NullPointerException) {
                     throw NumberFormatException()
                 }
@@ -176,7 +183,7 @@ fun applyFunctions(flatExpr: List<ExprToken>) : List<ExprToken> {
             } else {
                 throw NumberFormatException()
             }
-            val result : Double
+            val result : List<Double?>
             try {
                 result = functionMap[flatExpr[k].value as String]!!.action(args)
             } catch (e : NullPointerException) {
@@ -196,6 +203,43 @@ fun applyFunctions(flatExpr: List<ExprToken>) : List<ExprToken> {
     return resultingExpr.toList()
 }
 
+fun coalesceArrays(expr : List<ExprToken>) : List<ExprToken> {
+    val resultingExpr : MutableList<ExprToken> = mutableListOf()
+    var currentArray : MutableList<Double?> = mutableListOf()
+    var wantArrayToken = 1
+    var currentInnerExpr : MutableList<ExprToken> = mutableListOf()
+    for (k in expr.indices) {
+
+        if (wantArrayToken == -1) {
+            if (expr[k].tokenType in setOf(TokenType.SEP, TokenType.ARRAY)) {
+                val innerRes = evaluateExpression(currentInnerExpr)
+                currentArray.add(if (innerRes.size == 1) {innerRes[0]} else {null})
+                currentInnerExpr = mutableListOf()
+            } else {
+                currentInnerExpr.add(expr[k])
+            }
+        }
+
+        if (expr[k].tokenType == TokenType.ARRAY) {
+            if (expr[k].value as Int == wantArrayToken) {
+                wantArrayToken *= -1
+            } else {
+                throw NumberFormatException()
+            }
+            if (wantArrayToken == 1) {
+                resultingExpr.add(ExprToken(TokenType.NUMBER, currentArray.toList()))
+                currentArray = mutableListOf()
+            }
+        } else if (wantArrayToken == 1) {
+            resultingExpr.add(expr[k])
+        }
+    }
+    if (wantArrayToken == -1) {
+        throw NumberFormatException()
+    }
+    return resultingExpr.toList()
+}
+
 fun applyNegation(flatExpr: List<ExprToken>) : List<ExprToken> {
     val resultingExpr : MutableList<ExprToken> = mutableListOf(flatExpr[0])
     var prevTokenType = TokenType.OPERATION
@@ -207,7 +251,14 @@ fun applyNegation(flatExpr: List<ExprToken>) : List<ExprToken> {
         ) {
             resultingExpr.removeAt(resultingExpr.size-1)
             try {
-                resultingExpr.add(ExprToken(TokenType.NUMBER, -(flatExpr[k].value as Double)))
+                val exprVals = flatExpr[k].value as List<Double?>
+                resultingExpr.add(ExprToken(TokenType.NUMBER, List<Double?>(exprVals.size) {
+                    try {
+                        -exprVals[it]!!
+                    } catch (e : NullPointerException) {
+                        null
+                    }
+                }))
             } catch (e : NullPointerException) {
                 throw NumberFormatException()
             }
@@ -237,10 +288,29 @@ fun applyPow(flatExpr: List<ExprToken>) : List<ExprToken> {
             val prevExprToken = resultingExpr[resultingExpr.size-1]
             resultingExpr.removeAt(resultingExpr.size - 1)
             try {
+                val prevExprVal = prevExprToken.value as List<Double?>
+                val nextExprVal = flatExpr[k+1].value as List<Double?>
+                var prevSingle = false
+                var nextSingle = false
+                if (prevExprVal.size != nextExprVal.size) {
+                    if (prevExprVal.size == 1) {
+                        prevSingle = true
+                    } else if (nextExprVal.size == 1) {
+                        nextSingle = true
+                    } else {
+                        throw NumberFormatException()
+                    }
+                }
                 resultingExpr.add(
                     ExprToken(
                         TokenType.NUMBER,
-                        (prevExprToken.value as Double).pow(flatExpr[k + 1].value as Double)
+                        List<Double?>(prevExprVal.size) {
+                            try {
+                                prevExprVal[if (prevSingle) {0} else {it}]!!.pow(nextExprVal[if (nextSingle) {0} else {it}]!!)
+                            } catch (e : NullPointerException) {
+                                null
+                            }
+                        }
                     )
                 )
             } catch (e : NullPointerException) {
@@ -263,26 +333,69 @@ fun applyMulDiv(flatExpr: List<ExprToken>) : List<ExprToken> {
             continue
         }
         if (
-            flatExpr[k] in setOf(
+            (flatExpr[k] in setOf(
                 ExprToken(TokenType.OPERATION, OperationType.MUL),
-                ExprToken(TokenType.OPERATION, OperationType.DIV)
-            ) && flatExpr[k-1].tokenType == TokenType.NUMBER &&
-            flatExpr[k+1].tokenType == TokenType.NUMBER
+                ExprToken(TokenType.OPERATION, OperationType.DIV),
+                ExprToken(TokenType.OPERATION, OperationType.MOD)
+            ) || flatExpr[k].tokenType == TokenType.NUMBER) &&
+            flatExpr[k-1].tokenType == TokenType.NUMBER &&
+            (flatExpr[k+1].tokenType == TokenType.NUMBER || flatExpr[k].tokenType == TokenType.NUMBER)
+
         ) {
             val prevExprToken = resultingExpr[resultingExpr.size-1]
             resultingExpr.removeAt(resultingExpr.size-1)
             try {
+                val prevExprVal = prevExprToken.value as List<Double?>
+                val nextExprVal = flatExpr[when (flatExpr[k].tokenType) {
+                    TokenType.NUMBER -> k
+                    else -> k+1
+                    }
+                ].value as List<Double?>
+                var prevSingle = false
+                var nextSingle = false
+                if (prevExprVal.size != nextExprVal.size) {
+                    if (prevExprVal.size == 1) {
+                        prevSingle = true
+                    } else if (nextExprVal.size == 1) {
+                        nextSingle = true
+                    } else {
+                        throw NumberFormatException()
+                    }
+                }
                 resultingExpr.add(
                     ExprToken(
                         TokenType.NUMBER,
                         when (flatExpr[k].value) {
-                            OperationType.MUL -> (prevExprToken.value as Double) * (flatExpr[k + 1].value as Double)
-                            else -> (prevExprToken.value as Double) / (flatExpr[k + 1].value as Double)
+                            OperationType.MUL -> List<Double?>(prevExprVal.size) {
+                                try {
+                                    prevExprVal[if (prevSingle) {0} else {it}]!! * nextExprVal[if (nextSingle) {0} else {it}]!!
+                                } catch (e : NullPointerException) {
+                                    null
+                                }
+                            }
+                            OperationType.MOD -> List<Double?>(prevExprVal.size) {
+                                try {
+                                    prevExprVal[if (prevSingle) {0} else {it}]!! % nextExprVal[if (nextSingle) {0} else {it}]!!
+                                    when (prevExprVal[if (prevSingle) {0} else {it}]!! >= 0.0) {
+                                        true -> 0.0
+                                        false -> nextExprVal[if (nextSingle) {0} else {it}]!!
+                                    }
+                                } catch (e : NullPointerException) {
+                                    null
+                                }
+                            }
+                            else -> List<Double?>(prevExprVal.size) {
+                                try {
+                                    prevExprVal[if (prevSingle) {0} else {it}]!! / nextExprVal[if (nextSingle) {0} else {it}]!!
+                                } catch (e : NullPointerException) {
+                                    null
+                                }
+                            }
                         }
                     )
                 )
             } catch (e : NullPointerException) {
-                throw NumberFormatException()
+                throw IndexOutOfBoundsException()
             }
             skip = true
         } else {
@@ -310,17 +423,42 @@ fun applyAddSub(flatExpr: List<ExprToken>) : List<ExprToken> {
             val prevExprToken = resultingExpr[resultingExpr.size-1]
             resultingExpr.removeAt(resultingExpr.size-1)
             try {
+                val prevExprVal = prevExprToken.value as List<Double?>
+                val nextExprVal = flatExpr[k+1].value as List<Double?>
+                var prevSingle = false
+                var nextSingle = false
+                if (prevExprVal.size != nextExprVal.size) {
+                    if (prevExprVal.size == 1) {
+                        prevSingle = true
+                    } else if (nextExprVal.size == 1) {
+                        nextSingle = true
+                    } else {
+                        throw NumberFormatException()
+                    }
+                }
                 resultingExpr.add(
                     ExprToken(
                         TokenType.NUMBER,
                         when (flatExpr[k].value) {
-                            OperationType.ADD -> (prevExprToken.value as Double) + (flatExpr[k + 1].value as Double)
-                            else -> (prevExprToken.value as Double) - (flatExpr[k + 1].value as Double)
+                            OperationType.ADD -> List<Double?>(prevExprVal.size) {
+                                try {
+                                    prevExprVal[if (prevSingle) {0} else {it}]!! + nextExprVal[if (nextSingle) {0} else {it}]!!
+                                } catch (e : NullPointerException) {
+                                    null
+                                }
+                            }
+                            else -> List<Double?>(prevExprVal.size) {
+                                try {
+                                    prevExprVal[if (prevSingle) {0} else {it}]!! - nextExprVal[if (nextSingle) {0} else {it}]!!
+                                } catch (e : NullPointerException) {
+                                    null
+                                }
+                            }
                         }
                     )
                 )
             } catch (e : NullPointerException) {
-                throw NumberFormatException()
+                throw IndexOutOfBoundsException()
             }
             skip = true
         } else {
@@ -339,17 +477,35 @@ fun applyFactorial(flatExpr: List<ExprToken>) : List<ExprToken> {
             continue
         }
         if (k >= 1 && flatExpr[k] == ExprToken(TokenType.OPERATION, OperationType.FACTORIAL) && flatExpr[k-1].tokenType == TokenType.NUMBER) {
-            var arg = 0
+            var arg : MutableList<Double?>
             try {
-                arg = (flatExpr[k - 1].value as Double).roundToInt()
+                arg = (flatExpr[k - 1].value as List<Double?>).toMutableList()
             } catch (e : NullPointerException) {
-                throw NumberFormatException()
+                throw IndexOutOfBoundsException()
             }
-            var res : Long = 1
-            for (i in 2..arg) {
-                res *= i
+            val res = MutableList<Double?>(arg.size) {1.0}
+            for (l in arg.indices) {
+                var thisArg : Double
+                var thisRes = 1.0
+                try {
+                    thisArg = arg[l]!!
+                } catch (e : NullPointerException) {
+                    res[l] = null
+                    continue
+                }
+                while (thisArg < 35.0) {
+                    thisArg += 1.0
+                    thisRes /= thisArg
+                }
+                thisRes *= sqrt(2.0 * Math.PI * thisArg) * (thisArg / Math.E).pow(thisArg) * (
+                    1.0 +
+                    1.0 / (12.0 * thisArg) +
+                    1.0 / (288.0 * thisArg * thisArg) -
+                    139.0 / (51840.0 * thisArg * thisArg * thisArg)
+                )
+                res[l] = thisRes
             }
-            resultingExpr.add(ExprToken(TokenType.NUMBER, value=res.toDouble()))
+            resultingExpr.add(ExprToken(TokenType.NUMBER, value=res.toList()))
             skip = true
         } else {
             resultingExpr.add(flatExpr[k])
@@ -358,10 +514,12 @@ fun applyFactorial(flatExpr: List<ExprToken>) : List<ExprToken> {
     return resultingExpr.reversed().toList()
 }
 
-fun evaluateExpression(expr : List<ExprToken>) : Double {
-    var flatExpr = flattenBrackets(expr)
-    flatExpr = insertVariableValues(flatExpr)
+fun evaluateExpression(expr : List<ExprToken>) : List<Double?> {
+    var flatExpr : List<ExprToken>
     try {
+        flatExpr = coalesceArrays(expr)
+        flatExpr = flattenBrackets(flatExpr)
+        flatExpr = insertVariableValues(flatExpr)
         flatExpr = applyFunctions(flatExpr)
         flatExpr = applyFactorial(flatExpr)
         flatExpr = applyPow(flatExpr)
@@ -375,7 +533,7 @@ fun evaluateExpression(expr : List<ExprToken>) : Double {
         throw NumberFormatException()
     }
     try {
-        return flatExpr[0].value as Double
+        return flatExpr[0].value as List<Double?>
     } catch (e : NullPointerException) {
         throw NumberFormatException()
     }

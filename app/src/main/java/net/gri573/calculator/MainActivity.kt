@@ -230,8 +230,20 @@ fun Body(modifier: Modifier = Modifier) {
                         .fillMaxSize(),
                 ) {
                     items(variableMap.keys.toList()) { varName ->
+                        var value : String
+                        if (variableMap[varName]?.size == 1) {
+                            value = "%.7g".format(variableMap[varName]!![0])
+                        } else if (variableMap[varName] != null) {
+                            value = "["
+                            for (entry in variableMap[varName]!!) {
+                                value += "%.7g, ".format(entry)
+                            }
+                            value = value.slice(0..value.length-3) + "]"
+                        } else {
+                            value = "Invalid"
+                        }
                         Text(
-                            text = "$varName = ${variableMap[varName]}",
+                            text = "$varName = $value",
                             textAlign = TextAlign.Left,
                             fontSize = 16.sp,
                             modifier = Modifier.padding(start = 8.dp, end = 8.dp)

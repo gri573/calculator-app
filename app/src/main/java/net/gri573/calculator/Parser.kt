@@ -366,7 +366,7 @@ fun applyMulDiv(flatExpr: List<ExprToken>) : List<ExprToken> {
                     ExprToken(
                         TokenType.NUMBER,
                         when (flatExpr[k].value) {
-                            OperationType.MUL -> List<Double?>(prevExprVal.size) {
+                            OperationType.MUL -> List<Double?>(if (prevSingle) {nextExprVal.size} else {prevExprVal.size}) {
                                 try {
                                     prevExprVal[if (prevSingle) {0} else {it}]!! * nextExprVal[if (nextSingle) {0} else {it}]!!
                                 } catch (e : NullPointerException) {
@@ -440,7 +440,7 @@ fun applyAddSub(flatExpr: List<ExprToken>) : List<ExprToken> {
                     ExprToken(
                         TokenType.NUMBER,
                         when (flatExpr[k].value) {
-                            OperationType.ADD -> List<Double?>(prevExprVal.size) {
+                            OperationType.ADD -> List<Double?>(if (nextSingle) {prevExprVal.size} else {prevExprVal.size}) {
                                 try {
                                     prevExprVal[if (prevSingle) {0} else {it}]!! + nextExprVal[if (nextSingle) {0} else {it}]!!
                                 } catch (e : NullPointerException) {

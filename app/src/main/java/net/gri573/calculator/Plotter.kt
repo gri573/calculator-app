@@ -32,6 +32,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import kotlin.math.absoluteValue
 import kotlin.math.floor
 import kotlin.math.log10
 import kotlin.math.max
@@ -111,7 +112,7 @@ fun PlotFunction(modifier : Modifier = Modifier, func : MathFunction, showPlot :
                             val yValues0: List<Double?> =
                                 func.action(listOf(List<Double?>(xValues.size) { xValues[it].toDouble() }))
                             yValues =
-                                List(xValues.size) { if(yValues0[it] != null && !(yValues0[it]!!.isNaN())) {yValues0[it]!!.toFloat()} else {null} }
+                                List(xValues.size) { if(yValues0[it] != null && !(yValues0[it]!!.isNaN()) or yValues0[it]!!.isInfinite()) {yValues0[it]!!.toFloat()} else {null} }
                         } catch (e : NumberFormatException) {
                             yValues = List(xValues.size) {null}
                         }
@@ -192,30 +193,44 @@ fun PlotFunction(modifier : Modifier = Modifier, func : MathFunction, showPlot :
                         )
                         val path = Path()
                         var prevValid = false
+                        var prevInYRange = true
                         for (i in xValues.indices) {
                             if (yValues[i] != null) {
-                                val newOffset = Offset(
-                                    mapRange(
-                                        xValues[i],
-                                        plotBounds[0][0],
-                                        plotBounds[0][1],
-                                        0.0F,
-                                        size.width
-                                    ),
-                                    mapRange(
-                                        yValues[i]!!,
-                                        plotBounds[1][0],
-                                        plotBounds[1][1],
-                                        0.0F,
-                                        size.height
-                                    )
+                                val thisInCoarseYRange = (
+                                    yValues[i]!! > plotCenterY - 3.0 * mappedSizeY.absoluteValue &&
+                                    yValues[i]!! < plotCenterY + 3.0 * mappedSizeY.absoluteValue
                                 )
-                                if (prevValid) {
-                                    path.lineTo(newOffset.x, newOffset.y)
+                                if (thisInCoarseYRange) {
+                                    val newOffset = Offset(
+                                        mapRange(
+                                            xValues[i],
+                                            plotBounds[0][0],
+                                            plotBounds[0][1],
+                                            0.0F,
+                                            size.width
+                                        ),
+                                        mapRange(
+                                            yValues[i]!!,
+                                            plotBounds[1][0],
+                                            plotBounds[1][1],
+                                            0.0F,
+                                            size.height
+                                        )
+                                    )
+                                    val thisInYRange = (
+                                        yValues[i]!! > plotCenterY - 0.6 * mappedSizeY.absoluteValue &&
+                                        yValues[i]!! < plotCenterY + 0.6 * mappedSizeY.absoluteValue
+                                    )
+                                    if (prevValid && (thisInYRange || prevInYRange)) {
+                                        path.lineTo(newOffset.x, newOffset.y)
+                                    } else {
+                                        path.moveTo(newOffset.x, newOffset.y)
+                                    }
+                                    prevInYRange = thisInYRange
+                                    prevValid = true
                                 } else {
-                                    path.moveTo(newOffset.x, newOffset.y)
+                                    prevValid = false
                                 }
-                                prevValid = true
                             } else {
                                 prevValid = false
                             }

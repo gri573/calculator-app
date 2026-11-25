@@ -375,7 +375,7 @@ fun applyMulDiv(flatExpr: List<ExprToken>) : List<ExprToken> {
                             }
                             OperationType.MOD -> List<Double?>(prevExprVal.size) {
                                 try {
-                                    prevExprVal[if (prevSingle) {0} else {it}]!! % nextExprVal[if (nextSingle) {0} else {it}]!!
+                                    prevExprVal[if (prevSingle) {0} else {it}]!! % nextExprVal[if (nextSingle) {0} else {it}]!! +
                                     when (prevExprVal[if (prevSingle) {0} else {it}]!! >= 0.0) {
                                         true -> 0.0
                                         false -> nextExprVal[if (nextSingle) {0} else {it}]!!
